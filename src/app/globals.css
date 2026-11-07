@@ -1,0 +1,8 @@
+* { box-sizing: border-box; }
+html { color-scheme: dark; background: #05060c; }
+body { margin: 0; color: #f3f3f8; font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased; }
+button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button { font: inherit; cursor: pointer; }
+a { color: inherit; text-underline-offset: .25em; }
+button:focus-visible, a:focus-visible { outline: 2px solid #a7a3ff; outline-offset: 6px; }
+::selection { background: #5144a3; color: white; }
