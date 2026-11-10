@@ -1,5 +1,5 @@
-import Hero from "../components/hero/Hero";
+import Story from "../components/story/Story";
 
 export default function Home() {
-  return <Hero />;
+  return <Story />;
 }

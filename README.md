@@ -1,6 +1,19 @@
-# Omar Al Akara — introduction
+# Omar Al Akara — portfolio
 
-The first section of the portfolio: responsive navigation, introduction, two CTAs, and a live particle Earth. The later sections are intentionally not built.
+A single scroll story built from `PORTFOLIO_PLAN.md` and the CV. One shared particle field flies through space behind six normal-flow sections, and every scene and transition between them is made of particles:
+
+| Section | Particle scene (always right column, same size) | GSAP choreography |
+| --- | --- | --- |
+| Introduction | Earth, Lebanon glowing in gold | Headline letters fly in from deep space; they disperse into the stars as you leave the hero |
+| Skills | Satellite, turning with the scroll | Pinned: the four skill groups orbit the satellite as rings of chips; each orbit takes its turn (hover pauses) |
+| Results | Spiral galaxy (inner stars orbit faster) | Numbers count up to the CV values; rules draw across |
+| Work | Particle rocket with exhaust, climbing as you scroll | Pinned: a one-screen stack; each project screen rises from lying back as the previous one flies past |
+| Experience | Robot whose head follows the cursor | Pinned: a year track fills while each role swaps in with its skills; the robot waves on arrival and from “Wave hello” |
+| Contact | Earth, the same size as the opening | Email letters ripple on hover |
+
+Pinned, one-screen sections apply on screens of at least 1100×680; smaller screens use natural scrolling with lighter animation.
+
+Across the page: eyebrow labels scramble in, lead text rises line by line, buttons are magnetic, and a soft star cursor (glow, lagging ring, stardust trail, click ripple) replaces the native cursor on mouse devices.
 
 ## Preview
 
@@ -9,64 +22,43 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:3000**. Move the mouse gently around the Earth. The motion button pauses/resumes the entire canvas. On mobile, the globe sits below the copy and navigation opens through Menu.
-
-The Work, Skills, and About navigation controls and Explore my work CTA open an accessible coming-soon dialog with the supplied CV. They do not point to missing anchors or invented projects. Get in touch and the navigation contact link open an email to the address in the supplied CV. Replace preview actions with section anchors when those sections are implemented.
+Open **http://localhost:3000**.
 
 ## Architecture
 
 | File | Responsibility |
 | --- | --- |
-| `src/app/page.tsx` | Homepage entry; renders only the introduction |
-| `src/components/hero/Hero.tsx` | Prerendered semantic content, navigation, preview dialog |
-| `src/app/page.module.css` | Desktop/mobile composition |
-| `src/components/particles/ParticleStage.tsx` | Lazy 3D loading, static fallback, motion preference, visibility, error boundary, pause control |
-| `src/components/particles/SharedCanvas.tsx` | One R3F canvas, background points, Earth sculpture, Lebanon marker, resource lifecycle |
-| `src/components/particles/shaders.ts` | GPU particle color, local pointer influence, target-buffer interpolation |
-| `src/components/particles/scene-state.ts` | Small interface for a later scroll controller: morph, visibility, rotation speed |
-| `scripts/generate-earth.mjs` | Deterministic land sampling and matching static SVG generation |
-| `public/particles/` | Self-hosted binary Earth positions and static fallback |
-| `public/Omar-Al-Akara-CV.pdf` | Unmodified supplied CV |
+| `src/app/page.tsx` | Renders the story |
+| `src/components/story/Story.tsx` | All semantic content, navigation, project dialog |
+| `src/components/story/content.ts` | CV-sourced copy (skills, metrics, milestones). Do not add facts that are not in the CV |
+| `src/components/story/useStoryScroll.ts` | The single GSAP/ScrollTrigger controller: scene tracking plus all choreography, created in page order |
+| `src/components/story/StaticArt.tsx` | Static line art used without JavaScript, with reduced motion, or without WebGL |
+| `src/components/particles/ParticleStage.tsx` | Fixed full-viewport 3D layer, loader, fallbacks |
+| `src/components/particles/SharedCanvas.tsx` | One R3F canvas: flying starfield, morphing sculpture, robot head tracking, bloom |
+| `src/components/particles/shape-buffers.ts` | Equal-length particle targets with stable correspondence: Earth, satellite, galaxy, rocket, robot |
+| `src/components/particles/shaders.ts` | GPU morphing, robot head and arm joints, rocket flame, starfield flight |
+| `src/components/particles/RocketExhaust.tsx` | Particle exhaust plume for the rocket scene |
+| `src/components/effects/StarCursor.tsx` | Soft custom cursor for fine pointers |
 
-Earth has 24,854 points, including 19,445 land points, using Natural Earth coastlines. Each particle has a persistent position and land flag. The GPU interpolates `position` toward `aTarget` with `uMorph`; the initial target is Earth itself. Future shapes should supply equal-length target buffers with deliberate point correspondence. A later scroll controller can update `SceneState` without replacing the canvas or mixing animation logic with page content. GSAP and the other shapes are not needed or installed for this introduction.
-
-The Earth rotates slowly around its geographic axis. Fine-pointer movement gently tilts the globe and affects nearby particles; touch scrolling is not intercepted. The gold marker is placed at 33.89° N, 35.50° E and rotates with Earth.
+GSAP writes a small mutable `StoryMotion` object (`story` 0–5, `rise`, `orbit`, `wave`, `speed`, `anchor`); the canvas reads it every frame, so scrolling never triggers React re-renders. GSAP plugins used (bundled with `gsap` 3.15): ScrollTrigger, SplitText, ScrambleText.
 
 ## Accessibility and performance
 
-- Static HTML and a geographic SVG render before JavaScript. No essential content is inside WebGL.
-- `prefers-reduced-motion: reduce` uses the static globe without loading the 3D chunk or creating a canvas. Changes to the preference are observed live.
-- Explicit pause/resume; rendering stops while the tab or scene is hidden.
-- Mobile uses about 14,166 points and pixel ratio 1; desktop caps pixel ratio at 1.5.
-- Sustained slow frames lower resolution and particle count, then switch to the SVG if still slow.
-- Failed assets, unavailable WebGL, render errors, and context loss leave the static globe and content usable.
-- Keyboard focus styles, skip link, native dialog focus trapping/Escape handling, and accessible mobile menu state.
-- No external runtime requests, paid services, analytics, or visitor AI calls.
+- All text and links are real HTML; nothing essential is inside WebGL. Split headings keep their accessible names.
+- `prefers-reduced-motion: reduce` skips WebGL and all choreography and shows static art; the custom cursor only runs with motion on fine pointers.
+- Rendering pauses when the tab is hidden; slow devices drop particle count, then fall back to static art; context loss falls back too.
+- The starfield and morphs run on the GPU; the cursor trail's render loop stops when idle.
 
 ## Verification
 
 ```powershell
 npm run typecheck
 npm run build
-npm run check:hero
+npm run check:portfolio   # needs `npm run dev` on port 3000 and local Chrome
 ```
 
-`build` generates the static site in `out/`. `check:hero` requires a running preview on port 3000 and local Chrome. It checks actual WebGL, changing frames, pause/resume, CTA/dialog focus behavior, CV delivery, mobile navigation, 390px/320px overflow, live reduced-motion changes, context-loss fallback, and the no-JavaScript page. Screenshots are written to ignored `artifacts/`.
+`check:portfolio` is behavioural (no screenshots): it checks that every section fits one screen at 1440×1000 and 1280×720 with its scene in the right column, each scene's value per section, reversible morphs, the skill orbits, project stack and experience track, that content never disappears while on screen, metric values, the robot wave and head tracking, the project dialog and focus return, navigation, overflow at 390/320/844/1024 widths, reduced motion and no-JavaScript output. No real-device frame-rate claim is made.
 
-For another browser executable or server:
+## Sources
 
-```powershell
-$env:CHROME_PATH = 'C:/path/to/chrome.exe'
-$env:PREVIEW_URL = 'http://localhost:3001'
-npm run check:hero
-```
-
-Browser viewport emulation is not a substitute for testing physical phones. No real-device frame-rate claim is made.
-
-Regenerate geographic assets with `npm run generate:earth` (not required for normal builds).
-
-## Sources and reference availability
-
-The design follows `PORTFOLIO_PLAN.md`: cinematic near-black, blue/violet particles, restrained gold, real geographic forms. The original visual reference images were not present in the supplied workspace or current conversation and could not be inspected.
-
-Geography: [Natural Earth public-domain land data](https://www.naturalearthdata.com/about/terms-of-use/), distributed by [world-atlas](https://github.com/topojson/world-atlas). Geographic processing is done offline during asset generation, not in the visitor's browser. Rendering follows [React Three Fiber performance guidance](https://r3f.docs.pmnd.rs/advanced/scaling-performance).
+Geography: [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/) via [world-atlas](https://github.com/topojson/world-atlas). All other shapes are generated procedurally.

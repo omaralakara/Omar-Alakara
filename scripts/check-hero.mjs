@@ -2,135 +2,115 @@ import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-fs.mkdirSync('artifacts', { recursive: true });
-const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
-const url = process.env.PREVIEW_URL || 'http://localhost:3000';
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-const page = await context.newPage();
+fs.mkdirSync('artifacts',{recursive:true});
+const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+const url=process.env.PREVIEW_URL || 'http://localhost:3000';
+const context=await browser.newContext({viewport:{width:1440,height:900}});
+const page=await context.newPage();
 const errors=[];
-page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
-page.on('console', m => {if(m.type()==='error') {errors.push(m.text());console.error(m.text());}});
-async function scrollToProgress(progress) {
-  await page.evaluate(p=>window.scrollTo(0,(document.documentElement.scrollHeight-innerHeight)*p),progress);
-  await page.waitForTimeout(1400);
-  assert(Math.abs(Number(await page.locator('[data-progress]').getAttribute('data-progress'))-progress)<.02);
+page.on('pageerror',e=>errors.push(e.message));
+page.on('console',m=>{if(m.type()==='error') errors.push(m.text());});
+const chapters=['origin','ignition','orbit','connections','horizon'];
+async function progress(p) {
+  await page.evaluate(value=>window.scrollTo(0,(document.documentElement.scrollHeight-innerHeight)*value),p);
+  await page.waitForFunction(value=>Math.abs(Number(document.querySelector('[data-progress]').dataset.progress)-value)<.002,p);
+  await page.waitForTimeout(180);
 }
-async function chapterVisible(chapter) {
-  assert(await page.locator(`[data-chapter="${chapter}"]`).evaluate(el=>!el.inert && Number(getComputedStyle(el).opacity)>.95 && getComputedStyle(el).visibility==='visible'),`${chapter} text is readable and interactive`);
-  for(const other of ['opening','drift','satellite'].filter(name=>name!==chapter)) {
-    assert(await page.locator(`[data-chapter="${other}"]`).evaluate(el=>el.inert),`${other} actions stay out of keyboard navigation`);
-  }
+async function pixels() {
+  return page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{
+    const gl=document.querySelector('[data-scene] canvas').getContext('webgl2');
+    const data=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);
+    gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,data);
+    let varied=0;
+    for(let i=4;i<data.length;i+=4) if(Math.abs(data[i]-data[0])+Math.abs(data[i+1]-data[1])+Math.abs(data[i+2]-data[2])>3) varied++;
+    resolve(varied);
+  })));
 }
-async function fitsViewport() {
-  assert(await page.evaluate(() => {
-    const main=document.querySelector('main').getBoundingClientRect();
-    const heading=document.querySelector('h1').getBoundingClientRect();
-    const contact=[...document.querySelectorAll('a')].find(a=>a.textContent.includes('Get in touch')).getBoundingClientRect();
-    return document.documentElement.scrollWidth<=innerWidth && main.height<=innerHeight+1 && heading.top>=0 && contact.bottom<innerHeight;
-  }), 'Opening content must fit one viewport with no horizontal overflow');
+async function chapterFits(index) {
+  const result=await page.locator('[data-chapter="'+chapters[index]+'"]').evaluate(el=>{
+    const copy=el.querySelector('h1,h2').parentElement.getBoundingClientRect(),heading=el.querySelector('h1,h2').getBoundingClientRect(),style=getComputedStyle(el);
+    return {inert:el.inert,opacity:Number(style.opacity),visible:style.visibility==='visible',left:copy.left,right:copy.right,top:heading.top,bottom:copy.bottom,width:innerWidth,height:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth};
+  });
+  assert(!result.inert && result.opacity>.99 && result.visible,'Chapter must be visible and accessible');
+  assert(!result.overflow && result.left>=0 && result.right<=result.width+1 && result.top>55 && result.bottom<result.height-24,'Chapter content fits the viewport: '+JSON.stringify(result));
 }
 try {
   await page.goto(url);
-  await page.locator('[data-scene="interactive"]').waitFor({timeout:30000});
+  await page.locator('[data-scene="interactive"]').waitFor({timeout:40000});
+  await page.evaluate(()=>document.fonts.ready);
   await page.waitForTimeout(2300);
-  assert.equal(await page.locator('canvas').count(),1);
+  assert.equal(await page.locator('[data-scene] canvas').count(),1);
   assert.equal(await page.locator('h1').count(),1);
-  assert.equal(await page.locator('#work,#skills,#about,#contact').count(),0);
-  assert.equal(await page.getByRole('button',{name:/Pause motion|Resume motion/}).count(),0);
-  assert.equal(await page.getByText('Scroll to explore').count(),0);
-  await chapterVisible('opening');
-  await fitsViewport();
-  const canvas=page.locator('canvas');
-  const first=await canvas.screenshot();
-  await page.waitForTimeout(500);
-  assert(!first.equals(await canvas.screenshot()),'Earth floats/rotates');
-  await page.screenshot({path:'artifacts/hero-desktop.png'});
-  await page.mouse.move(250,700);
-  await page.mouse.move(1150,420,{steps:24});
-  await page.mouse.move(600,200,{steps:18});
-  await page.screenshot({path:'artifacts/hero-cursor-wake.png'});
-  await scrollToProgress(.43);
-  await chapterVisible('drift');
-  await page.screenshot({path:'artifacts/hero-cloud.png'});
-  await scrollToProgress(1);
-  await chapterVisible('satellite');
-  await page.screenshot({path:'artifacts/hero-satellite.png'});
-  await page.getByRole('button',{name:'Explore my work'}).click();
-  assert(await page.locator('dialog').evaluate(el=>el.open));
-  await page.keyboard.press('Escape');
-  await scrollToProgress(.43);
-  await chapterVisible('drift');
-  await scrollToProgress(0);
-  await chapterVisible('opening');
-  assert.equal(await page.locator('[data-progress]').getAttribute('data-progress'),'0.000');
-  await page.getByRole('button',{name:'Explore my work'}).click();
-  assert(await page.locator('dialog').evaluate(el=>el.open));
-  assert.equal(await page.getByRole('link',{name:'View my CV'}).getAttribute('href'),'/Omar-Al-Akara-CV.pdf');
-  assert.equal((await page.request.get(url+'/Omar-Al-Akara-CV.pdf')).status(),200);
-  await page.keyboard.press('Escape');
-  assert(!(await page.locator('dialog').evaluate(el=>el.open)));
-  assert(await page.getByRole('button',{name:'Explore my work'}).evaluate(el=>el===document.activeElement));
-  assert.equal(await page.getByRole('link',{name:'Get in touch'}).getAttribute('href'),'mailto:omar.alakara3@gmail.com');
-  for(const [width,height,name] of [[768,1024,'tablet'],[390,844,'mobile'],[320,568,'small-mobile'],[844,390,'landscape']]) {
-    await page.setViewportSize({width,height});
-    await page.waitForTimeout(350);
-    await fitsViewport();
-    await page.screenshot({path:`artifacts/hero-${name}.png`});
-    await scrollToProgress(1);
-    await chapterVisible('satellite');
-    assert(await page.locator('[data-chapter="satellite"]').evaluate(el=>{
-      const rect=el.getBoundingClientRect();
-      return rect.top>65 && rect.bottom<innerHeight-35 && rect.left>=0 && rect.right<=innerWidth;
-    }),'Satellite text fits the viewport');
-    await page.screenshot({path:`artifacts/hero-${name}-satellite.png`});
-    await scrollToProgress(0);
+  assert.equal(await page.locator('main section').count(),5);
+  assert.equal(await page.locator('footer,[data-interlude]').count(),0,'No footer or interlude screens');
+  assert.equal(await page.locator('dialog,a[href^="mailto:"],a[href$=".pdf"]').count(),0);
+  assert.equal(await page.getByRole('button',{name:/Explore|Get in touch|talk|CV/i}).count(),0);
+  for(let i=0;i<5;i++) {
+    await progress(i/4);await chapterFits(i);
+    assert((await pixels())>1000,'Each chapter has a visible particle sculpture');
+    await page.screenshot({path:'artifacts/story-desktop-'+chapters[i]+'.png'});
+    if(i<4) {
+      for(const phase of [.35,.53,.75]) {
+        await progress((i+phase)/4);
+        assert((await pixels())>3000,'Continuous visual transition, without an empty interlude');
+      }
+    }
   }
+  for(let i=3;i>=0;i--) {await progress(i/4);await chapterFits(i);}
+  await page.mouse.move(700,600);await page.mouse.move(1120,350,{steps:28});await page.mouse.move(1250,500,{steps:20});
+  await page.screenshot({path:'artifacts/story-cursor-wake.png'});
+  await page.mouse.click(1100,430);
+  assert(await page.locator('[data-cursor-effects] canvas').count()>0,'React Bits click burst appears');
+  await page.waitForTimeout(100);await page.screenshot({path:'artifacts/story-click-burst.png'});
+  await page.waitForTimeout(1400);
+  assert.equal(await page.locator('[data-cursor-effects] canvas').count(),0,'Spark canvases are cleaned up after the burst');
+  await page.getByRole('link',{name:'Go to Systems chapter'}).click();
+  await page.waitForFunction(()=>document.querySelector('[data-progress]').dataset.progress==='0.750');
+  await chapterFits(3);
+  await page.getByRole('link',{name:'Go to Origin chapter'}).click();
+  await page.waitForFunction(()=>document.querySelector('[data-progress]').dataset.progress==='0.000');
+  console.log('PASS: five chapters, removed CTAs, continuous transitions without interludes, React Bits bursts with cleanup, reverse navigation, chapter links and accessibility.');
+  for(const [width,height,name] of [[768,1024,'tablet'],[390,844,'mobile'],[320,568,'small-mobile'],[844,390,'landscape']]) {
+    await page.setViewportSize({width,height});await page.waitForTimeout(500);
+    for(let i=0;i<5;i++) {
+      await progress(i/4);await chapterFits(i);
+      await page.screenshot({path:'artifacts/story-'+name+'-'+chapters[i]+'.png'});
+    }
+  }
+  console.log('PASS: all five chapters fit tablet, mobile, small mobile, and landscape.');
   await page.setViewportSize({width:390,height:844});
-  await page.getByRole('button',{name:'Menu +'}).click();
-  await page.getByRole('button',{name:'Skills',exact:true}).click();
-  assert(await page.locator('dialog').evaluate(el=>el.open));
-  await page.keyboard.press('Escape');
   await page.emulateMedia({reducedMotion:'reduce'});
-  await page.locator('[data-scene="static"]').waitFor();
-  assert.equal(await page.locator('canvas').count(),0);
-  assert(await page.locator('img').evaluate(el=>el.complete && el.naturalWidth>0 && getComputedStyle(el).opacity==='1'));
-  assert(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight+1),'Reduced motion has no scroll runway');
-  await page.screenshot({path:'artifacts/hero-reduced-motion.png'});
+  await page.locator('[data-scene="static"]').waitFor({state:'attached'});
+  assert.equal(await page.locator('[data-scene] canvas').count(),0);
+  assert.equal(await page.locator('[data-cursor-effects]').count(),0,'No cursor animation in static mode');
+  for(const id of chapters) {
+    const section=page.locator('#'+id);
+    await section.scrollIntoViewIfNeeded();
+    assert(await section.evaluate(el=>!el.inert && getComputedStyle(el).visibility==='visible' && Number(getComputedStyle(el).opacity)===1),'Static chapters remain readable');
+  }
+  await page.getByRole('link',{name:'Go to Origin chapter'}).click();
+  await page.screenshot({path:'artifacts/story-reduced-motion.png'});
   await page.emulateMedia({reducedMotion:'no-preference'});
   await page.locator('[data-scene="interactive"]').waitFor();
-  await page.locator('canvas').evaluate(el=>el.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
-  await page.locator('[data-scene="static"]').waitFor();
-  assert.equal(await page.locator('canvas').count(),0);
-  assert.deepEqual(errors,[],'No runtime, shader or hydration errors');
-  console.log('PASS: WebGL, rotation, cursor strokes, removed controls, reversible Earth/cloud/satellite sequence, chapter visibility/focus, CV/contact, desktop/tablet/mobile/landscape layouts, reduced motion, context loss.');
-
-  const nojs=await browser.newContext({javaScriptEnabled:false});
+  await page.locator('[data-scene] canvas').evaluate(el=>el.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+  await page.locator('[data-scene="static"]').waitFor({state:'attached'});
+  assert.equal(await page.locator('[data-scene] canvas').count(),0);
+  assert(await page.locator('#horizon').evaluate(el=>!el.inert),'Context loss preserves the entire story');
+  assert.deepEqual(errors,[],'No shader, runtime, or hydration errors');
+  console.log('PASS: reduced motion and context loss preserve every section.');
+  const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:1440,height:900}});
   const staticPage=await nojs.newPage();await staticPage.goto(url);
-  assert(await staticPage.locator('h1').isVisible());
-  assert(await staticPage.locator('img').evaluate(el=>el.complete && el.naturalWidth>0));
+  assert.equal(await staticPage.locator('main section').count(),5);
   assert.equal(await staticPage.locator('canvas').count(),0);
   assert.equal(await staticPage.getByRole('status').count(),0);
-  console.log('PASS: no-JavaScript content and globe, without a blocking loader.');
-
-  const loadingPage=await context.newPage();
-  await loadingPage.route('**/particles/earth.bin',async route=>{await new Promise(resolve=>setTimeout(resolve,3000));await route.continue().catch(()=>{});});
-  await loadingPage.goto(url);
-  await loadingPage.getByRole('status').waitFor();
-  await loadingPage.screenshot({path:'artifacts/hero-loading.png'});
-  await loadingPage.getByRole('button',{name:'Enter without animation'}).click();
-  assert.equal(await loadingPage.getByRole('status').count(),0);
-  assert(await loadingPage.locator('h1').isVisible());
-  assert.equal(await loadingPage.locator('[data-scene]').getAttribute('data-scene'),'static');
-  console.log('PASS: actual-loading screen is skippable and retains static content.');
-
-  const unsupported=await browser.newContext();
-  await unsupported.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return String(type).includes('webgl') ? null : original.call(this,type,...args);};});
-  const noGl=await unsupported.newPage();await noGl.goto(url);await noGl.waitForTimeout(1500);
-  assert(await noGl.locator('h1').isVisible());
-  assert.equal(await noGl.locator('[data-scene]').getAttribute('data-scene'),'static');
-  assert.equal(await noGl.getByRole('status').count(),0);
-  console.log('PASS: unavailable WebGL leaves a static globe and dismisses the loader.');
-} catch(error) {
-  await page.screenshot({path:'artifacts/hero-debug.png'}).catch(()=>{});
-  throw error;
+  await staticPage.getByRole('link',{name:'Go to Beyond chapter'}).click();
+  assert(await staticPage.locator('#horizon').evaluate(el=>el.getBoundingClientRect().top<innerHeight),'Navigation works without JavaScript');
+  console.log('PASS: full story and anchor navigation work without JavaScript.');
+  const loading=await context.newPage();
+  await loading.route('**/particles/earth.bin',async route=>{await new Promise(resolve=>setTimeout(resolve,2500));await route.continue().catch(()=>{});});
+  await loading.goto(url);await loading.getByRole('status').waitFor();
+  await loading.getByRole('button',{name:'Enter without animation'}).click();
+  assert.equal(await loading.getByRole('status').count(),0);
+  assert.equal(await loading.locator('main section').count(),5);
+  console.log('PASS: loader can be skipped into the complete static story.');
 } finally {await browser.close();}

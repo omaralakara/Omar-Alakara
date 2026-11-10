@@ -1,10 +1,7 @@
-.stage { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.stage { position: fixed; inset: 0; height: 100lvh; z-index: 0; pointer-events: none; }
 .canvas { position: absolute; inset: 0; }
 .haze { position: absolute; inset: 0; background: radial-gradient(ellipse at 78% 50%,#24205b33,transparent 48%),#030409; }
-.fallback { position: absolute; top: 50%; left: 74.5%; transform: translate(-50%,-50%); width: min(64vw,90svh); height: auto; object-fit: contain; pointer-events: none; }
-.fallbackHidden { opacity: 0; }
-.readability { position: absolute; inset: 0; background: linear-gradient(90deg,#03040977 0%,#03040933 26%,transparent 54%); }
-.loader { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; flex-direction: column; background: radial-gradient(ellipse at center,#15102c,#030409 65%); transition: opacity .55s; }
+.loader { position: fixed; inset: 0; height: 100svh; z-index: 20; display: flex; align-items: center; justify-content: center; flex-direction: column; background: radial-gradient(ellipse at center,#15102c,#030409 65%); transition: opacity .55s; }
 .loaderDone { opacity: 0; pointer-events: none; }
 .loader > p { margin: 28px 0 13px; font-size: 22px; letter-spacing: -.04em; }
 .loader > p > span { color: #9480ff; }
@@ -19,6 +16,5 @@
 .track > span { display: block; height: 100%; width: 100%; background: linear-gradient(90deg,#426fff,#ad7dfa,#ddb87f); transform-origin: left; transition: transform .25s; }
 .loader > button { position: absolute; bottom: 36px; border: 0; background: none; font-size: 10px; color: #a598bb; padding: 12px; }
 @keyframes orbit { to { transform: rotateX(60deg) rotateZ(330deg); } }
-@media(max-width:900px) { .fallback { left: 52%; top: 70%; width: min(105vw,53svh); } .readability { background: linear-gradient(180deg,#03040922,transparent 32%,transparent); } }
-@media(max-height:500px) and (orientation:landscape) { .fallback { left: 74.5%; top: 50%; width: min(64vw,90svh); } }
+
 @media(prefers-reduced-motion:reduce) { .loaderOrbit { animation: none; } .track > span { transition: none; } }

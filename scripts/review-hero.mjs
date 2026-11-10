@@ -1,30 +1,20 @@
 import { chromium } from '@playwright/test';
 import fs from 'node:fs';
 fs.mkdirSync('artifacts',{recursive:true});
-const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 const page=await browser.newPage({viewport:{width:1440,height:900}});
 page.on('pageerror',error=>console.error(error.message));
-page.on('console',message=>{if(message.type()==='error')console.error(message.text());});
-await page.goto('http://localhost:3000');
-await page.locator('[data-scene="interactive"]').waitFor({timeout:30000});
-await page.waitForTimeout(2400);
-await page.screenshot({path:'artifacts/revision-earth.png'});
-await page.evaluate(()=>window.scrollTo(0,(document.documentElement.scrollHeight-innerHeight)*.43));
-await page.waitForTimeout(1400);
-await page.screenshot({path:'artifacts/revision-cloud.png'});
-await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight-innerHeight));
-await page.waitForTimeout(1400);
-await page.screenshot({path:'artifacts/revision-satellite.png'});
-await page.evaluate(()=>window.scrollTo(0,0));
-await page.setViewportSize({width:390,height:844});
-await page.waitForTimeout(1300);
-await page.screenshot({path:'artifacts/revision-mobile.png'});
-await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight-innerHeight));
-await page.waitForTimeout(1400);
-await page.screenshot({path:'artifacts/revision-mobile-satellite.png'});
-await page.setViewportSize({width:320,height:568});
-await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight-innerHeight));
-await page.waitForTimeout(1400);
-await page.screenshot({path:'artifacts/revision-small-mobile-satellite.png'});
-console.log(await page.evaluate(()=>({height:innerHeight,viewport:document.querySelector('main').getBoundingClientRect().height,overflow:document.documentElement.scrollWidth>innerWidth,scene:document.querySelector('[data-scene]').dataset.scene})));
-await browser.close();
+try {
+  await page.goto(process.env.PREVIEW_URL || 'http://localhost:3000');
+  await page.locator('[data-scene="interactive"]').waitFor({timeout:40000});
+  await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(2400);
+  for(const [width,height,layout] of [[1440,900,'desktop'],[390,844,'mobile']]) {
+    await page.setViewportSize({width,height});await page.waitForTimeout(400);
+    for(const [progress,name] of [[0,'earth'],[.125,'transition'],[.25,'launch'],[.5,'orbit'],[.75,'core'],[1,'horizon']]) {
+      await page.evaluate(p=>scrollTo(0,(document.documentElement.scrollHeight-innerHeight)*p),progress);
+      await page.waitForTimeout(1600);
+      await page.screenshot({path:'artifacts/review-'+layout+'-'+name+'.png'});
+    }
+  }
+  console.log('Captured the five scenes and continuous transition on desktop and mobile.');
+} finally {await browser.close();}

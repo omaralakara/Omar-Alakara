@@ -6,7 +6,8 @@
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "generate:earth": "node scripts/generate-earth.mjs",
-    "check:hero": "node scripts/check-hero.mjs"
+    "check:hero": "node scripts/check-portfolio.mjs",
+    "check:portfolio": "node scripts/check-portfolio.mjs"
   },
   "private": true,
   "dependencies": {

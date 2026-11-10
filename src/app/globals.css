@@ -1,8 +1,14 @@
 * { box-sizing: border-box; }
-html { color-scheme: dark; background: #05060c; }
-body { margin: 0; color: #f3f3f8; font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased; }
+html { color-scheme: dark; background: #030409; scroll-padding-top: 72px; }
+body { margin: 0; color: #f1f0ed; font-family: var(--font-sans), Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased; }
 button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 button { font: inherit; cursor: pointer; }
 a { color: inherit; text-underline-offset: .25em; }
-button:focus-visible, a:focus-visible { outline: 2px solid #a7a3ff; outline-offset: 6px; }
-::selection { background: #5144a3; color: white; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid #9fb8ff; outline-offset: 6px; }
+button:disabled { cursor: default; }
+::selection { background: #9fb8ff; color: #030409; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+/* Custom star cursor (fine pointers with motion only). The native cursor returns in modal dialogs. */
+html.has-star-cursor, html.has-star-cursor * { cursor: none !important; }
+html.has-star-cursor dialog, html.has-star-cursor dialog * { cursor: auto !important; }
+html.has-star-cursor dialog a, html.has-star-cursor dialog button { cursor: pointer !important; }
